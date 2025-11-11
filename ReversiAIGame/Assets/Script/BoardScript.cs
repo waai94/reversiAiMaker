@@ -70,7 +70,11 @@ public class BoardScript : MonoBehaviour
             stoneRenderer.color = Color.white;
             stoneRenderer.enabled = true;
         }
-        else
+        else if( player == -1)// 無効な手を示す表示（赤色）
+        {
+            stoneRenderer.color = Color.red;
+            stoneRenderer.enabled = true;
+        } else
         {
             // 石を非表示
             stoneRenderer.enabled = false;

@@ -2,6 +2,7 @@ using NUnit.Framework;
 using System;
 using UnityEngine;
 using System.Collections.Generic;
+using Unity.Mathematics;
 
 public class ReversiGame : MonoBehaviour
 {
@@ -14,24 +15,47 @@ public class ReversiGame : MonoBehaviour
 
     [SerializeField] private GameObject boardPrehab;
     private List<BoardScript> boardCells = new List<BoardScript>();
+    private ReversiAIScirpt aiScript;
+
     void Start()
     {
         InitializeBoard();
         PrintBoard();
-        
         SpawnBoard();
         UpdateCells();
     }
 
-    // 盤面のセルを生成する関数
+    void FindAiScript()
+    {
+        GameObject aiObject = GameObject.FindGameObjectWithTag("ReversiAI");
+        if (!aiObject) return;
+
+        aiScript = aiObject.GetComponent<ReversiAIScirpt>();
+        if (!aiScript)
+        {
+            Debug.LogError("ReversiAIScirpt component not found on GameObject with tag 'ReversiAI'!");
+            return;
+        }
+
+        aiScript.InitializeAI(2); // AIは白
+    }
+
+    void CallAIRequest()
+    {
+        if (aiScript)
+        {
+            aiScript.RunAISearch();
+        }
+    }
+
     void SpawnBoard()
     {
-        if(!boardPrehab) 
+        if (!boardPrehab)
         {
             Debug.LogError("Board prefab is not assigned!");
             return;
         }
-        // 盤面のセルを生成
+
         Vector3 spawnPosition = new Vector3(-BoardSize / 2, -BoardSize / 2, 0);
         for (int x = 0; x < BoardSize; x++)
         {
@@ -47,49 +71,59 @@ public class ReversiGame : MonoBehaviour
                     boardScript.id = x + y * BoardSize;
                     boardScript.reversiGame = this;
                 }
-                else
-                {
-                    Debug.LogError("BoardScript component not found on the prefab!");
-                }
                 spawnPosition.x += 1;
             }
             spawnPosition.x = -BoardSize / 2;
             spawnPosition.y += 1;
         }
     }
+
     void InitializeBoard()
     {
-        // 初期盤面
         board[3, 3] = 2;
         board[4, 4] = 2;
         board[3, 4] = 1;
         board[4, 3] = 1;
     }
 
-    // ユーザーからの入力を受ける関数
+    // 手を打つ
     public void MakeMove(int x, int y)
     {
         if (!IsValidMove(x, y, currentPlayer))
         {
-            Debug.Log("無効な手です");
+            Debug.Log($"{(currentPlayer == 1 ? "黒" : "白")}：無効な手です");
             return;
         }
 
         ApplyMove(x, y, currentPlayer);
-        currentPlayer = 3 - currentPlayer; // プレイヤー交代
+        currentPlayer = 3 - currentPlayer; // ターン交代
         PrintBoard();
 
+        // 現在のプレイヤーに有効手がない場合（パス判定）
         if (!HasValidMove(currentPlayer))
         {
-            currentPlayer = 3 - currentPlayer;
+            Debug.Log($"{(currentPlayer == 1 ? "黒" : "白")}はパスしました。");
+            currentPlayer = 3 - currentPlayer; // ターンを戻す
+
+            // 両者ともパスなら終了
             if (!HasValidMove(currentPlayer))
             {
-                Debug.Log("ゲーム終了");
+                Debug.Log("両者とも打てる手がありません。ゲーム終了。");
                 PrintResult();
+                return;
             }
         }
+
+        // AIターンなら呼び出し
+        if (currentPlayer == 2)
+        {
+            if (!aiScript)
+                FindAiScript();
+
+            CallAIRequest();
+        }
     }
-    // 指定された位置に石を置けるかどうかをチェック
+
     bool IsValidMove(int x, int y, int player)
     {
         if (board[x, y] != 0) return false;
@@ -131,7 +165,7 @@ public class ReversiGame : MonoBehaviour
         {
             int nx = x + dx[dir];
             int ny = y + dy[dir];
-            System.Collections.Generic.List<Vector2Int> toFlip = new System.Collections.Generic.List<Vector2Int>();
+            List<Vector2Int> toFlip = new List<Vector2Int>();
 
             while (nx >= 0 && nx < BoardSize && ny >= 0 && ny < BoardSize)
             {
@@ -195,12 +229,11 @@ public class ReversiGame : MonoBehaviour
             if (cell == 2) white++;
         }
         Debug.Log($"黒: {black} 白: {white}");
-        if (black > white) Debug.Log("黒の勝ち");
-        else if (white > black) Debug.Log("白の勝ち");
-        else Debug.Log("引き分け");
+        if (black > white) Debug.Log("黒の勝ち！");
+        else if (white > black) Debug.Log("白の勝ち！");
+        else Debug.Log("引き分け！");
     }
 
-    // ボードの状態を外部から取得する関数
     public int GetCell(int x, int y)
     {
         return board[x, y];
@@ -213,5 +246,41 @@ public class ReversiGame : MonoBehaviour
             int state = GetCell(cell.myBoardX, cell.myBoardY);
             cell.UpdateBoardVisual(state);
         }
+    }
+
+    public int GetFlippableCount(int x, int y, int player)
+    {
+        if (board[x, y] != 0) return 0;
+
+        int opponent = 3 - player;
+        int totalFlips = 0;
+
+        for (int dir = 0; dir < 8; dir++)
+        {
+            int nx = x + dx[dir];
+            int ny = y + dy[dir];
+            int flipsInDir = 0;
+
+            while (nx >= 0 && nx < BoardSize && ny >= 0 && ny < BoardSize)
+            {
+                if (board[nx, ny] == opponent)
+                {
+                    flipsInDir++;
+                    nx += dx[dir];
+                    ny += dy[dir];
+                }
+                else if (board[nx, ny] == player && flipsInDir > 0)
+                {
+                    totalFlips += flipsInDir;
+                    break;
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+
+        return totalFlips;
     }
 }
