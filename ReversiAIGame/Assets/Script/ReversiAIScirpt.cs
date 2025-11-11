@@ -19,6 +19,7 @@ public class ReversiAIScirpt : MonoBehaviour
 
     [SerializeField] private int myTurn = 1; // AIのターン（1:黒, 2:白）
     private ReversiGame reversiGame;
+    [SerializeField] bool reverseMode = false; // 評価値を反転させるモード
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
@@ -55,9 +56,9 @@ public class ReversiAIScirpt : MonoBehaviour
             {
                 // 石の価値
                 score[x, y] += stoneValueWeight * GetStoneValue(x, y, myTurn);
-                if(reversiGame.GetFlippableCount(x, y, myTurn)==0)
+                if (reversiGame.GetFlippableCount(x, y, myTurn) == 0)
                 {
-                    score[x, y] = -99999999; //置けない場所は極端に低い値にする
+                    score[x, y] = float.NegativeInfinity; //置けない場所は極端に低い値にする
                     continue;
                 }
 
@@ -66,12 +67,20 @@ public class ReversiAIScirpt : MonoBehaviour
 
                 // 位置の価値
                 score[x, y] *= positionWeight[x, y];
+                if (reverseMode && score[x,y] !=float.NegativeInfinity)
+                {
+                    score[x, y] = -score[x, y];
+                }
             }
         }
-        int[][] flipPositions = GetFlipPosition(score);
-        Debug.Log("AI chooses to place at: " + flipPositions[0][0] + ", " + flipPositions[0][1]);
-        reversiGame.MakeMove(flipPositions[0][0], flipPositions[0][1]);
+        //int[][] flipPositions = GetFlipPosition(score);
+        int[] flipPosition = ChooseRandomTopPosition(score, choiceNumber);
+         Debug.Log($"{(myTurn == 1 ? "Black" : "White")}  AI choice {flipPosition[0]},{flipPosition[1]}");
+        Debug.Log("AI making move...");
+        if (!reversiGame) return;
+        reversiGame.MakeMove(flipPosition[0], flipPosition[1]);
     }
+    // スコア配列から上位choiceNumber個の位置を取得する
 
     int[][] GetFlipPosition(float[,] scores)
     {
@@ -101,7 +110,23 @@ public class ReversiAIScirpt : MonoBehaviour
                 scores[maxX, maxY] = float.NegativeInfinity; // 次の最大値を見つけるために現在の最大値を無効化
             }
         }
+       
         return topPositions;
+    }
+    // 上位choiceNumber個の中からランダムに1つ選ぶ
+    int[] ChooseRandomTopPosition(float[,] scores, int choiceNumber)
+    {
+        int[][] topPositions = GetFlipPosition(scores); // 上位n件を取得
+        if (topPositions.Length == 0)
+        {
+            Debug.LogError("No valid positions available for AI to choose from.");
+            return null;
+        }
+
+        // 0 ～ topPositions.Length-1 のランダムなインデックスを取得
+        int randomIndex = UnityEngine.Random.Range(0, topPositions.Length);
+        Debug.Log($"AI selected position: {topPositions[randomIndex][0]}, {topPositions[randomIndex][1]}");
+        return topPositions[randomIndex]; // 選ばれた [x, y] を返す
     }
 
     // 石の取得数を価値として計算する
